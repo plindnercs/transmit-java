@@ -1,7 +1,5 @@
 package edu.plus.cs;
 
-import edu.plus.cs.packet.Sender;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;

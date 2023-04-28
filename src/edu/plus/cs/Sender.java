@@ -1,4 +1,9 @@
-package edu.plus.cs.packet;
+package edu.plus.cs;
+
+import edu.plus.cs.packet.DataPacketBody;
+import edu.plus.cs.packet.FinalizePacketBody;
+import edu.plus.cs.packet.InitializePacketBody;
+import edu.plus.cs.packet.Packet;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -48,6 +53,7 @@ public class Sender {
             }
         }
 
+        // TODO: Calculate MD5 sum
         MessageDigest md = MessageDigest.getInstance("MD5");
         Packet finalizePacket = new Packet(
                 uid,
