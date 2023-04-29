@@ -8,7 +8,7 @@ import java.security.NoSuchAlgorithmException;
 public class Main {
     public static void main(String[] args) throws IOException, NoSuchAlgorithmException, InterruptedException {
         File file = new File("test.txt");
-        Sender sender = new Sender(file, InetAddress.getLocalHost(), 1337, 128, 1);
+        Sender sender = new Sender(file, InetAddress.getLocalHost(), 6969, 128, 1);
 
         sender.send();
     }

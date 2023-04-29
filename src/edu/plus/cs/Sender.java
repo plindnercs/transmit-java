@@ -4,6 +4,7 @@ import edu.plus.cs.packet.DataPacketBody;
 import edu.plus.cs.packet.FinalizePacketBody;
 import edu.plus.cs.packet.InitializePacketBody;
 import edu.plus.cs.packet.Packet;
+import edu.plus.cs.util.ChunkedIterator;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -11,8 +12,10 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Sender {
@@ -34,7 +37,7 @@ public class Sender {
     }
 
     public void send() throws IOException, InterruptedException, NoSuchAlgorithmException {
-        byte uid = (byte) ThreadLocalRandom.current().nextInt();
+        short uid = (short) new Random().nextInt(1, Short.MAX_VALUE + 1);
         Packet infoPacket = new Packet(
                 uid,
                 sequenceNumber++,
@@ -67,40 +70,6 @@ public class Sender {
         return () -> new ChunkedIterator(input, chunkSize);
     }
 
-    private class ChunkedIterator implements java.util.Iterator<byte[]> {
-        private final FileInputStream input;
-        private final byte[] buffer;
-        private boolean closed = false;
-
-        public ChunkedIterator(FileInputStream input, int chunkSize) {
-            this.input = input;
-            this.buffer = new byte[chunkSize];
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (closed) {
-                return false;
-            }
-            try {
-                int read = input.read(buffer);
-                if (read == -1) {
-                    input.close();
-                    closed = true;
-                    return false;
-                }
-                return true;
-            } catch (IOException e) {
-                return false;
-            }
-        }
-
-        @Override
-        public byte[] next() {
-            return buffer;
-        }
-    }
-
     private void sendPacket(Packet packet) throws IOException, InterruptedException {
         if (packet.getPacketBody() instanceof InitializePacketBody) {
             log("snd inf at " + System.currentTimeMillis());
@@ -110,13 +79,14 @@ public class Sender {
 
         // System.out.println("Sending Packet " + packet);
         byte[] bytes = packet.serialize();
+        System.out.println(new String(bytes, StandardCharsets.UTF_8));
         DatagramPacket udpPacket = new DatagramPacket(bytes, bytes.length, receiver, port);
         socket.send(udpPacket);
 
         Thread.sleep(packetDelayUs / 1000, (int) (packetDelayUs % 1000) * 1000);
 
         System.out.println("Sent packet: ");
-        System.out.println(packet.toString());
+        System.out.println(packet);
     }
 
     private void log(String message) {
