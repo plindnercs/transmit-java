@@ -12,6 +12,7 @@ public class InitializePacketBody extends PacketBody implements Serializable {
     public InitializePacketBody(int maxSequenceNumber, char[] fileName) {
         this.maxSequenceNumber = maxSequenceNumber;
         this.fileName = fileName;
+        this.packetBodyIdentifier = (byte) 0x00;
     }
 
     public int getMaxSequenceNumber() {
@@ -32,7 +33,8 @@ public class InitializePacketBody extends PacketBody implements Serializable {
 
     @Override
     public byte[] serialize() {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(4 + new String(fileName).getBytes().length);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(1 + 4 + new String(fileName).getBytes().length);
+        byteBuffer.put(packetBodyIdentifier);
         byteBuffer.putInt(maxSequenceNumber);
         byteBuffer.put(new String(fileName).getBytes(StandardCharsets.UTF_8));
         return byteBuffer.array();

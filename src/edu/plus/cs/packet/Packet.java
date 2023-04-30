@@ -34,7 +34,7 @@ public class Packet implements Serializable {
                             getByteArrayAt(data, HEADER_SIZE, len - HEADER_SIZE)
                     );
                     case (byte) 0xFF -> new FinalizePacketBody(
-                            (new String(getByteArrayAt(data, HEADER_SIZE, len - HEADER_SIZE))).toCharArray()
+                            getByteArrayAt(data, HEADER_SIZE, len - HEADER_SIZE)
                     );
                     default -> throw new Exception("unknown packet type");
                 }
@@ -85,11 +85,6 @@ public class Packet implements Serializable {
 
     public byte[] serialize() throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        /*ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeShort(transmissionId);
-        oos.writeInt(sequenceNumber);
-        oos.writeObject(packetBody);
-        oos.flush();*/
         ByteBuffer buffer = ByteBuffer.allocate(2 + 4 + packetBody.serialize().length);
         buffer.putShort(transmissionId);
         buffer.putInt(sequenceNumber);

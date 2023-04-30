@@ -12,11 +12,9 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 
 public class Sender {
     private final File fileToTransfer;
@@ -37,49 +35,38 @@ public class Sender {
     }
 
     public void send() throws IOException, InterruptedException, NoSuchAlgorithmException {
-        short uid = (short) new Random().nextInt(1, Short.MAX_VALUE + 1);
-        Packet infoPacket = new Packet(
-                uid,
-                sequenceNumber++,
-                new InitializePacketBody((int) fileToTransfer.length(), fileToTransfer.getName().toCharArray())
-        );
+        // get random transmissionId
+        short transmissionId = (short) new Random().nextInt(1, Short.MAX_VALUE + 1);
+
+        // send first (initialize) packet
+        Packet infoPacket = new Packet(transmissionId,sequenceNumber++,
+                new InitializePacketBody((int) fileToTransfer.length(), fileToTransfer.getName().toCharArray()));
+        System.out.println("snd inf at " + System.currentTimeMillis());
         sendPacket(infoPacket);
 
+        // send data packets while computing the md5 hash
+        MessageDigest md = MessageDigest.getInstance("MD5");
         try (FileInputStream input = new FileInputStream(fileToTransfer)) {
-            for (byte[] chunk : chunkedSequence(input, chunkSize)) {
-                Packet dataPacket = new Packet(
-                        uid,
-                        sequenceNumber++,
-                        new DataPacketBody(chunk)
-                );
+            for (ChunkedIterator it = new ChunkedIterator(input, chunkSize); it.hasNext(); ) {
+                byte[] chunk = it.next();
+                Packet dataPacket = new Packet(transmissionId, sequenceNumber++, new DataPacketBody(chunk));
                 sendPacket(dataPacket);
+                md.update(chunk);
             }
         }
 
-        // TODO: Calculate MD5 sum
-        MessageDigest md = MessageDigest.getInstance("MD5");
-        Packet finalizePacket = new Packet(
-                uid,
-                sequenceNumber++,
-                new FinalizePacketBody(new char[1])
-        );
+        // send last (finalize) packet
+        Packet finalizePacket = new Packet(transmissionId,sequenceNumber++,new FinalizePacketBody(md.digest()));
+        System.out.println(("snd fin at " + System.currentTimeMillis()));
         sendPacket(finalizePacket);
     }
 
-    private Iterable<byte[]> chunkedSequence(FileInputStream input, int chunkSize) {
-        return () -> new ChunkedIterator(input, chunkSize);
-    }
-
     private void sendPacket(Packet packet) throws IOException, InterruptedException {
-        if (packet.getPacketBody() instanceof InitializePacketBody) {
-            log("snd inf at " + System.currentTimeMillis());
-        } else if (packet.getPacketBody() instanceof FinalizePacketBody) {
-            log("snd fin at " + System.currentTimeMillis());
-        }
-
-        // System.out.println("Sending Packet " + packet);
+        // convert packet to byte[]
         byte[] bytes = packet.serialize();
-        System.out.println(new String(bytes, StandardCharsets.UTF_8));
+
+        // System.out.println(new String(bytes, StandardCharsets.UTF_8));
+
         DatagramPacket udpPacket = new DatagramPacket(bytes, bytes.length, receiver, port);
         socket.send(udpPacket);
 
@@ -87,9 +74,5 @@ public class Sender {
 
         System.out.println("Sent packet: ");
         System.out.println(packet);
-    }
-
-    private void log(String message) {
-        System.out.println(message);
     }
 }

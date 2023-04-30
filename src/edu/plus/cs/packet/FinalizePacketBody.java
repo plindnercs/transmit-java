@@ -6,10 +6,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class FinalizePacketBody extends PacketBody implements Serializable {
-    char[] md5; // 128 bit
+    byte[] md5; // 128 bit
 
-    public FinalizePacketBody(char[] md5) {
+    public FinalizePacketBody(byte[] md5) {
         this.md5 = md5;
+        this.packetBodyIdentifier = (byte) 0x02;
     }
 
     @Override
@@ -21,8 +22,9 @@ public class FinalizePacketBody extends PacketBody implements Serializable {
 
     @Override
     public byte[] serialize() {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(16);
-        byteBuffer.put(new String(md5).getBytes(StandardCharsets.UTF_8));
+        ByteBuffer byteBuffer = ByteBuffer.allocate(1 + 16);
+        byteBuffer.put(packetBodyIdentifier);
+        byteBuffer.put(md5);
         return byteBuffer.array();
     }
 }

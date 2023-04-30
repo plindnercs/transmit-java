@@ -5,7 +5,7 @@ import java.io.IOException;
 
 public class ChunkedIterator implements java.util.Iterator<byte[]> {
     private final FileInputStream input;
-    private final byte[] buffer;
+    private byte[] buffer;
     private boolean closed = false;
 
     public ChunkedIterator(FileInputStream input, int chunkSize) {
@@ -19,6 +19,7 @@ public class ChunkedIterator implements java.util.Iterator<byte[]> {
             return false;
         }
         try {
+            buffer = new byte[buffer.length];
             int read = input.read(buffer);
             if (read == -1) {
                 input.close();

@@ -1,8 +1,8 @@
 package edu.plus.cs.packet;
 
+
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class DataPacketBody extends PacketBody implements Serializable {
@@ -10,6 +10,7 @@ public class DataPacketBody extends PacketBody implements Serializable {
 
     public DataPacketBody(byte[] data) {
         this.data = data;
+        this.packetBodyIdentifier = (byte) 0x01;
     }
 
     public byte[] getData() {
@@ -25,6 +26,9 @@ public class DataPacketBody extends PacketBody implements Serializable {
 
     @Override
     public byte[] serialize() {
-        return data;
+        ByteBuffer byteBuffer = ByteBuffer.allocate(1 + data.length);
+        byteBuffer.put(packetBodyIdentifier);
+        byteBuffer.put(data);
+        return byteBuffer.array();
     }
 }
