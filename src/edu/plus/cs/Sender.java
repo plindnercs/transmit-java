@@ -1,9 +1,6 @@
 package edu.plus.cs;
 
-import edu.plus.cs.packet.DataPacketBody;
-import edu.plus.cs.packet.FinalizePacketBody;
-import edu.plus.cs.packet.InitializePacketBody;
-import edu.plus.cs.packet.Packet;
+import edu.plus.cs.packet.*;
 import edu.plus.cs.util.ChunkedIterator;
 
 import java.io.File;
@@ -38,26 +35,28 @@ public class Sender {
         // get random transmissionId
         short transmissionId = (short) new Random().nextInt(1, Short.MAX_VALUE + 1);
 
+        // calculate maxSequenceNumber
+        int maxSequenceNumber = (int) Math.ceilDiv(fileToTransfer.length(),chunkSize);
+
         // send first (initialize) packet
-        Packet infoPacket = new Packet(transmissionId,sequenceNumber++,
-                new InitializePacketBody((int) fileToTransfer.length(), fileToTransfer.getName().toCharArray()));
-        System.out.println("snd inf at " + System.currentTimeMillis());
-        sendPacket(infoPacket);
+        Packet initializePacket = new InitializePacket(transmissionId, sequenceNumber++, maxSequenceNumber, fileToTransfer.getName().toCharArray());
+        System.out.println("Sent initialize packet at: " + System.currentTimeMillis());
+        sendPacket(initializePacket);
 
         // send data packets while computing the md5 hash
         MessageDigest md = MessageDigest.getInstance("MD5");
         try (FileInputStream input = new FileInputStream(fileToTransfer)) {
             for (ChunkedIterator it = new ChunkedIterator(input, chunkSize); it.hasNext(); ) {
                 byte[] chunk = it.next();
-                Packet dataPacket = new Packet(transmissionId, sequenceNumber++, new DataPacketBody(chunk));
+                Packet dataPacket = new DataPacket(transmissionId, sequenceNumber++, chunk);
                 sendPacket(dataPacket);
                 md.update(chunk);
             }
         }
 
         // send last (finalize) packet
-        Packet finalizePacket = new Packet(transmissionId,sequenceNumber++,new FinalizePacketBody(md.digest()));
-        System.out.println(("snd fin at " + System.currentTimeMillis()));
+        Packet finalizePacket = new FinalizePacket(transmissionId, sequenceNumber++, md.digest());
+        System.out.println(("Sent finalize packet at: " + System.currentTimeMillis()));
         sendPacket(finalizePacket);
     }
 
