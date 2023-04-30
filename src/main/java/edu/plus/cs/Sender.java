@@ -14,6 +14,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Random;
 
 public class Sender {
+    private final short transmissionId;
     private final File fileToTransfer;
     private final InetAddress receiver;
     private final int port;
@@ -22,7 +23,8 @@ public class Sender {
     private final DatagramSocket socket;
     private short sequenceNumber = 0;
 
-    public Sender(File fileToTransfer, InetAddress receiver, int port, int chunkSize, long packetDelayUs) throws IOException {
+    public Sender(short transmissionId, File fileToTransfer, InetAddress receiver, int port, int chunkSize, long packetDelayUs) throws IOException {
+        this.transmissionId = transmissionId;
         this.fileToTransfer = fileToTransfer;
         this.receiver = receiver;
         this.port = port;
@@ -32,9 +34,6 @@ public class Sender {
     }
 
     public void send() throws IOException, InterruptedException, NoSuchAlgorithmException {
-        // get random transmissionId
-        short transmissionId = (short) new Random().nextInt(1, Short.MAX_VALUE + 1);
-
         // calculate maxSequenceNumber
         int maxSequenceNumber = (int) Math.ceilDiv(fileToTransfer.length(),chunkSize);
 
