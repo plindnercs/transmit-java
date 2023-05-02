@@ -16,7 +16,7 @@ public class Main {
         File file = new File(args[1]);
         int port = Integer.parseInt(args[2]);
 
-        Sender sender = new Sender(transmissionId, file, InetAddress.getLocalHost(), port, 100, 0);
+        Sender sender = new Sender(transmissionId, file, InetAddress.getLocalHost(), port, 1394, 0);
 
         sender.send();
     }

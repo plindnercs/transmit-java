@@ -11,7 +11,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Random;
 
 public class Sender {
     private final short transmissionId;
@@ -21,7 +20,7 @@ public class Sender {
     private final int chunkSize;
     private final long packetDelayUs;
     private final DatagramSocket socket;
-    private short sequenceNumber = 0;
+    private int sequenceNumber = 0;
 
     public Sender(short transmissionId, File fileToTransfer, InetAddress receiver, int port, int chunkSize, long packetDelayUs) throws IOException {
         this.transmissionId = transmissionId;
@@ -33,9 +32,9 @@ public class Sender {
         this.socket = new DatagramSocket();
     }
 
-    public void send() throws IOException, InterruptedException, NoSuchAlgorithmException {
+    public void send() throws IOException, NoSuchAlgorithmException, InterruptedException {
         // calculate maxSequenceNumber
-        int maxSequenceNumber = (int) Math.ceilDiv(fileToTransfer.length(),chunkSize);
+        int maxSequenceNumber = (int) Math.ceilDiv(fileToTransfer.length(), chunkSize);
 
         // send first (initialize) packet
         Packet initializePacket = new InitializePacket(transmissionId, sequenceNumber++, maxSequenceNumber, fileToTransfer.getName().toCharArray());
@@ -70,7 +69,7 @@ public class Sender {
 
         Thread.sleep(packetDelayUs / 1000, (int) (packetDelayUs % 1000) * 1000);
 
-        System.out.println("Sent packet: ");
-        System.out.println(packet);
+        // System.out.println("Sent packet: ");
+        // System.out.println(packet.getSequenceNumber());
     }
 }
