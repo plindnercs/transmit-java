@@ -95,13 +95,9 @@ public class Sender {
     }
 
     private boolean checkAcknowledgementPacket(DatagramPacket packet) {
-        if (packet.getLength() == 6) {
-            if (PacketInterpreter.getTransmissionId(packet.getData()) == this.transmissionId) {
-                return true;
-            }
-        }
-
-        return false;
+        return packet.getLength() == 6
+                && PacketInterpreter.getTransmissionId(packet.getData()) == this.transmissionId
+                && PacketInterpreter.getSequenceNumber(packet.getData()) == (this.sequenceNumber - 1);
     }
 
     private boolean handleAcknowledgementPacket() throws IOException {
