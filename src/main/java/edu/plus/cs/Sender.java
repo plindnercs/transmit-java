@@ -1,6 +1,7 @@
 package edu.plus.cs;
 
 import edu.plus.cs.packet.*;
+import edu.plus.cs.packet.util.PacketInterpreter;
 import edu.plus.cs.util.ChunkedIterator;
 
 import java.io.File;
@@ -18,18 +19,21 @@ public class Sender {
     private final InetAddress receiver;
     private final int port;
     private final int chunkSize;
+    private final int ackPort;
     private final long packetDelayUs;
     private final DatagramSocket socket;
     private int sequenceNumber = 0;
 
-    public Sender(short transmissionId, File fileToTransfer, InetAddress receiver, int port, int chunkSize, long packetDelayUs) throws IOException {
+    public Sender(short transmissionId, File fileToTransfer, InetAddress receiver, int port, int chunkSize,
+                  int ackPort, long packetDelayUs) throws IOException {
         this.transmissionId = transmissionId;
         this.fileToTransfer = fileToTransfer;
         this.receiver = receiver;
         this.port = port;
         this.chunkSize = chunkSize;
+        this.ackPort = ackPort;
         this.packetDelayUs = packetDelayUs;
-        this.socket = new DatagramSocket();
+        this.socket = new DatagramSocket(this.ackPort);
     }
 
     public void send() throws IOException, NoSuchAlgorithmException, InterruptedException {
@@ -41,6 +45,11 @@ public class Sender {
         System.out.println("Sent initialize packet at: " + System.currentTimeMillis());
         sendPacket(initializePacket);
 
+        // wait for ack
+        if (!handleAcknowledgementPacket()) {
+            return;
+        }
+
         // send data packets while computing the md5 hash
         MessageDigest md = MessageDigest.getInstance("MD5");
         try (FileInputStream input = new FileInputStream(fileToTransfer)) {
@@ -49,6 +58,11 @@ public class Sender {
                 Packet dataPacket = new DataPacket(transmissionId, sequenceNumber++, chunk);
                 sendPacket(dataPacket);
                 md.update(chunk);
+
+                // wait for ack
+                if (!handleAcknowledgementPacket()) {
+                    return;
+                }
             }
         }
 
@@ -56,6 +70,11 @@ public class Sender {
         Packet finalizePacket = new FinalizePacket(transmissionId, sequenceNumber++, md.digest());
         System.out.println(("Sent finalize packet at: " + System.currentTimeMillis()));
         sendPacket(finalizePacket);
+
+        // wait for ack
+        if (!handleAcknowledgementPacket()) {
+            return;
+        }
 
         this.socket.close();
     }
@@ -73,5 +92,31 @@ public class Sender {
 
         // System.out.println("Sent packet: ");
         // System.out.println(packet.getSequenceNumber());
+    }
+
+    private boolean checkAcknowledgementPacket(DatagramPacket packet) {
+        if (packet.getLength() == 6) {
+            if (PacketInterpreter.getTransmissionId(packet.getData()) == this.transmissionId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean handleAcknowledgementPacket() throws IOException {
+        byte[] buffer = new byte[65535];
+
+        // wait for ack
+        DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
+        this.socket.receive(udpPacket);
+
+        if (!checkAcknowledgementPacket(udpPacket)) {
+            System.err.println("Did not receive valid acknowledgement packet, abort transmission");
+            this.socket.close();
+            return false;
+        }
+
+        return true;
     }
 }
