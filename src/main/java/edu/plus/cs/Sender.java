@@ -56,6 +56,8 @@ public class Sender {
         Packet finalizePacket = new FinalizePacket(transmissionId, sequenceNumber++, md.digest());
         System.out.println(("Sent finalize packet at: " + System.currentTimeMillis()));
         sendPacket(finalizePacket);
+
+        this.socket.close();
     }
 
     private void sendPacket(Packet packet) throws IOException, InterruptedException {
