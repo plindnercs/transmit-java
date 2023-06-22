@@ -3,13 +3,16 @@ package edu.plus.cs;
 import edu.plus.cs.packet.*;
 import edu.plus.cs.packet.util.PacketInterpreter;
 import edu.plus.cs.util.ChunkedIterator;
+import edu.plus.cs.util.OperatingMode;
 
+import javax.xml.crypto.Data;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -23,9 +26,11 @@ public class Sender {
     private final long packetDelayUs;
     private final DatagramSocket socket;
     private int sequenceNumber = 0;
+    private OperatingMode operatingMode;
+    private int windowSize;
 
     public Sender(short transmissionId, File fileToTransfer, InetAddress receiver, int port, int chunkSize,
-                  int ackPort, long packetDelayUs) throws IOException {
+                  int ackPort, long packetDelayUs, OperatingMode operatingMode, int windowSize) throws IOException {
         this.transmissionId = transmissionId;
         this.fileToTransfer = fileToTransfer;
         this.receiver = receiver;
@@ -33,7 +38,10 @@ public class Sender {
         this.chunkSize = chunkSize;
         this.ackPort = ackPort;
         this.packetDelayUs = packetDelayUs;
-        this.socket = new DatagramSocket(this.ackPort);
+        this.socket = (operatingMode != OperatingMode.NO_ACK) ? new DatagramSocket(this.ackPort) : new DatagramSocket();
+        this.socket.setSoTimeout(5000);
+        this.operatingMode = operatingMode;
+        this.windowSize = windowSize;
     }
 
     public void send() throws IOException, NoSuchAlgorithmException, InterruptedException {
@@ -41,12 +49,14 @@ public class Sender {
         int maxSequenceNumber = (int) Math.ceilDiv(fileToTransfer.length(), chunkSize);
 
         // send first (initialize) packet
-        Packet initializePacket = new InitializePacket(transmissionId, sequenceNumber++, maxSequenceNumber, fileToTransfer.getName().toCharArray());
+        Packet initializePacket = new InitializePacket(transmissionId, sequenceNumber++, maxSequenceNumber,
+                fileToTransfer.getName().toCharArray());
         System.out.println("Sent initialize packet at: " + System.currentTimeMillis());
         sendPacket(initializePacket);
 
         // wait for ack
-        if (!handleAcknowledgementPacket()) {
+        // only check for acknowledgement if the operating mode requires to
+        if (operatingMode == OperatingMode.STOP_WAIT && !handleAcknowledgementPacket()) {
             return;
         }
 
@@ -60,7 +70,8 @@ public class Sender {
                 md.update(chunk);
 
                 // wait for ack
-                if (!handleAcknowledgementPacket()) {
+                // only check for acknowledgement if the operating mode requires to
+                if (operatingMode == OperatingMode.STOP_WAIT && !handleAcknowledgementPacket()) {
                     return;
                 }
             }
@@ -72,7 +83,8 @@ public class Sender {
         sendPacket(finalizePacket);
 
         // wait for ack
-        if (!handleAcknowledgementPacket()) {
+        // only check for acknowledgement if the operating mode requires to
+        if (operatingMode == OperatingMode.STOP_WAIT && !handleAcknowledgementPacket()) {
             return;
         }
 
@@ -88,6 +100,8 @@ public class Sender {
         DatagramPacket udpPacket = new DatagramPacket(bytes, bytes.length, receiver, port);
         socket.send(udpPacket);
 
+        // TODO: delay über cmd parameterisieren, nur nach erstem Paket oder jedes mal, delay nach gewisser
+        // Anzahl an Paketen
         Thread.sleep(packetDelayUs / 1000, (int) (packetDelayUs % 1000) * 1000);
 
         // System.out.println("Sent packet: ");
@@ -104,8 +118,15 @@ public class Sender {
         byte[] buffer = new byte[65535];
 
         // wait for ack
-        DatagramPacket udpPacket = new DatagramPacket(buffer, buffer.length);
-        this.socket.receive(udpPacket);
+        DatagramPacket udpPacket = null;
+        try {
+            udpPacket = new DatagramPacket(buffer, buffer.length);
+            this.socket.receive(udpPacket);
+        } catch (SocketTimeoutException ex) {
+            System.err.println("Did not receive acknowledgement packet in time, abort transmission");
+            this.socket.close();
+            return false;
+        }
 
         if (!checkAcknowledgementPacket(udpPacket)) {
             System.err.println("Did not receive valid acknowledgement packet, abort transmission");
