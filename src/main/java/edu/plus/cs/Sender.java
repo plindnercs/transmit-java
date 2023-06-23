@@ -15,6 +15,8 @@ import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Sender {
     private final short transmissionId;
@@ -28,6 +30,7 @@ public class Sender {
     private int sequenceNumber = 0;
     private OperatingMode operatingMode;
     private int windowSize;
+    private Map<Integer, Packet> windowBuffer;
 
     public Sender(short transmissionId, File fileToTransfer, InetAddress receiver, int port, int chunkSize,
                   int ackPort, long packetDelayUs, OperatingMode operatingMode, int windowSize) throws IOException {
@@ -42,6 +45,7 @@ public class Sender {
         this.socket.setSoTimeout(5000);
         this.operatingMode = operatingMode;
         this.windowSize = windowSize;
+        this.windowBuffer = new HashMap<>();
     }
 
     public void send() throws IOException, NoSuchAlgorithmException, InterruptedException {
@@ -60,6 +64,10 @@ public class Sender {
             return;
         }
 
+        if (operatingMode == OperatingMode.SLIDING_WINDOW && windowBuffer.size() == windowSize) {
+            while(!handleSlidingWindowAcknowledgement());
+        }
+
         // send data packets while computing the md5 hash
         MessageDigest md = MessageDigest.getInstance("MD5");
         try (FileInputStream input = new FileInputStream(fileToTransfer)) {
@@ -74,6 +82,10 @@ public class Sender {
                 if (operatingMode == OperatingMode.STOP_WAIT && !handleAcknowledgementPacket()) {
                     return;
                 }
+
+                if (operatingMode == OperatingMode.SLIDING_WINDOW && windowBuffer.size() == windowSize) {
+                    while(!handleSlidingWindowAcknowledgement());
+                }
             }
         }
 
@@ -81,6 +93,10 @@ public class Sender {
         Packet finalizePacket = new FinalizePacket(transmissionId, sequenceNumber++, md.digest());
         System.out.println(("Sent finalize packet at: " + System.currentTimeMillis()));
         sendPacket(finalizePacket);
+
+        if (operatingMode == OperatingMode.SLIDING_WINDOW /*&& windowBuffer.size() == windowSize*/) {
+            while(!handleSlidingWindowAcknowledgement());
+        }
 
         // wait for ack
         // only check for acknowledgement if the operating mode requires to
@@ -91,7 +107,42 @@ public class Sender {
         this.socket.close();
     }
 
+    private boolean handleSlidingWindowAcknowledgement() throws IOException, InterruptedException {
+        // check for cumulative ack
+        byte[] buffer = new byte[65535];
+
+        // wait for ack
+        DatagramPacket udpPacket;
+        try {
+            // receive first acknowledgement
+            udpPacket = new DatagramPacket(buffer, buffer.length);
+            this.socket.receive(udpPacket);
+
+            if (!checkAcknowledgementPacket(udpPacket)) {
+                // duplicate acknowledgement received, resend packet
+                udpPacket = new DatagramPacket(buffer, buffer.length);
+                this.socket.receive(udpPacket);
+
+                sendPacket(windowBuffer.get(PacketInterpreter.getSequenceNumber(udpPacket.getData())));
+
+                return false;
+            } else {
+                windowBuffer.clear();
+
+                return true;
+            }
+        } catch (SocketTimeoutException ex) {
+            System.err.println("Did not receive acknowledgement packet in time, abort transmission");
+            this.socket.close();
+            return true;
+        }
+    }
+
     private void sendPacket(Packet packet) throws IOException, InterruptedException {
+        if (operatingMode == OperatingMode.SLIDING_WINDOW) {
+            windowBuffer.put(packet.getSequenceNumber(), packet);
+        }
+
         // convert packet to byte[]
         byte[] bytes = packet.serialize();
 
@@ -104,8 +155,8 @@ public class Sender {
         // Anzahl an Paketen
         Thread.sleep(packetDelayUs / 1000, (int) (packetDelayUs % 1000) * 1000);
 
-        // System.out.println("Sent packet: ");
-        // System.out.println(packet.getSequenceNumber());
+        System.out.println("Sent packet: ");
+        System.out.println(packet.getSequenceNumber());
     }
 
     private boolean checkAcknowledgementPacket(DatagramPacket packet) {
@@ -118,7 +169,7 @@ public class Sender {
         byte[] buffer = new byte[65535];
 
         // wait for ack
-        DatagramPacket udpPacket = null;
+        DatagramPacket udpPacket;
         try {
             udpPacket = new DatagramPacket(buffer, buffer.length);
             this.socket.receive(udpPacket);

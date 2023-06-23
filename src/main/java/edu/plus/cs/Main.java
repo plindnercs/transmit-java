@@ -14,7 +14,7 @@ public class Main {
             OperatingMode operatingMode = parseOperatingMode(operatingModeCode);
 
             if (operatingMode == OperatingMode.NO_ACK && args.length != 6) {
-                System.err.println("Usage: 0 <transmissionId> <ip> <port> <fileName> <packetSize>");
+                System.err.println("Usage: <operatingMode> <transmissionId> <ip> <port> <fileName> <packetSize>");
                 return;
             } else if (operatingMode == OperatingMode.STOP_WAIT && args.length != 7) {
                 System.err.println("Usage: <operatingMode> <transmissionId> <ip> <port> <fileName> " +
