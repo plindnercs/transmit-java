@@ -35,7 +35,7 @@ public class Main {
             int windowSize = (operatingMode == OperatingMode.SLIDING_WINDOW) ? Integer.parseInt(args[7]) : -1;
 
             Sender sender = new Sender(transmissionId, file, InetAddress.getByName(ipAddress), port,
-                    packetSize, ackPort, 0, operatingMode, windowSize);
+                    packetSize, ackPort, operatingMode, windowSize);
 
             sender.send();
         }
